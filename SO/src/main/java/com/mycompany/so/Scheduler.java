@@ -11,7 +11,8 @@ public class Scheduler{
     ArrayDeque<Process> colaEspera = new ArrayDeque<Process>();
     Process enEjecucion;
     int procesosCompletados = 0;
-    int quantumActual = 4;
+    final int quantumBase = 4;
+    int quantumActual;
     Timer timer = new Timer();
     
     public void AddProcess(String nombre, int tiempoEjecucion, int tiempoLlegada) {
@@ -28,11 +29,15 @@ public class Scheduler{
         if(iter.hasNext()) {
             Process p = iter.next();
             if(p.EstaListo()) {
-                colaListo.add(p);
                 iter.remove();
+                colaListo.add(p);
             }
         }
         enEjecucion = colaListo.poll();
+    }
+    
+    public boolean NoMasProcesos() {
+        return colaListo.isEmpty() && colaEspera.isEmpty();
     }
     
     public void Simulacion() {
@@ -56,6 +61,8 @@ public class Scheduler{
             System.out.println("¡El scheduler no tiene tareas!");
             return;
         }
+        ChequearListos();
+        quantumActual = quantumBase;
         timer.scheduleAtFixedRate(new TimerTask() {
             @Override
             public void run() {
@@ -66,12 +73,40 @@ public class Scheduler{
     }
     
     public void CicloScheduler() {
-        if(colaListo.isEmpty()) {
-            if(colaEspera.isEmpty()) {
-                timer.cancel();
-                return;
+        if(NoMasProcesos() && (enEjecucion == null || enEjecucion.EstaFinalizado())) {
+            timer.cancel();
+            return; 
+        }
+        
+        if(enEjecucion == null) {
+            enEjecucion = colaListo.poll();
+        } else if(enEjecucion.EstaFinalizado()) {
+            procesosCompletados++;
+            if(!NoMasProcesos()) {     
+                enEjecucion = colaListo.poll();
+                quantumActual = quantumBase;
             }
-            
+        }
+        
+        if(quantumActual == 0) {
+            colaListo.add(enEjecucion);
+            enEjecucion = colaListo.poll();
+            quantumActual = quantumBase;
+        }
+        
+        Iterator<Process> iter = colaEspera.iterator();
+        while(iter.hasNext()) {
+            Process p = iter.next();
+            p.CicloComun();
+            if(p.EstaListo()) {
+                iter.remove();
+                colaListo.add(p);
+            }
+        }
+        
+        if(enEjecucion != null) {
+            enEjecucion.CicloEnEjecucion();
+            quantumActual--;
         }
     }
 }
